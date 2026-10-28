@@ -5,8 +5,8 @@
   v4  built for phones. There is no page scroll at all.
        One screen is held; a swipe turns to the next chapter.
   ============================================================
-  STILL TO FILL IN  search for "[" :
-    [About Srujana] · [About Rami Reddy]
+  THE COUPLE'S LINES: four for the bride and four for the groom, shown a
+  pair at a time; edit them in the two <p class="tag"> blocks.
 
   RSVP: replies are written to the family's Google Sheet by a small Google
   Apps Script web app, which also emails both family addresses. Its address
@@ -326,13 +326,20 @@ a{ color:inherit; }
 .who h3{ font-size:clamp(1.42rem,3.4vw,2.1rem); color:var(--tx-strong); }
 .who .role{ display:block; margin-bottom:8px; }
 .who p{ margin:11px auto 0; max-width:264px; font-size:.9rem; line-height:1.95; color:var(--tx-soft); }
+/* four lines for each of them, shown one pair at a time. They are stacked in
+   one cell, so the space is always that of the longest and nothing below
+   ever moves; the old line has gone before the new one starts to appear. */
+.who .tag{ display:grid; }
+.who .tag span{ grid-area:1 / 1; opacity:0; transition:opacity .9s ease; }
+.who .tag span.on{ opacity:1; transition:opacity .9s .9s ease; }
+@media (prefers-reduced-motion:reduce){ .who .tag span, .who .tag span.on{ transition:none; } }
 .knot{ will-change:transform; }
 .knot svg{ width:clamp(30px,4.6vw,46px); color:var(--turmeric); }
 @media (max-width:640px){
   /* stacked, so each figure gets a pair of columns to itself */
   .pair{ grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
   .knot{ grid-column:1 / -1; grid-row:2; margin:4px auto 0; }
-  .who p{ display:none; }
+  .who p{ margin-top:8px; font-size:.8rem; line-height:1.6; }
   .bomma{ width:min(132px,38vw); margin-bottom:12px; }
 }
 
@@ -1459,7 +1466,12 @@ a{ color:inherit; }
 </svg></div>
           <span class="eyebrow role">The Bride</span>
           <h3>Venkata Srujana</h3>
-          <p>[About Srujana: a line about where she's from and what she loves.]</p>
+          <p class="tag">
+            <span class="on">Every tear she sheds is for someone she loves.</span>
+            <span aria-hidden="true">She carries everyone she loves in her heart. No wonder she is always tired.</span>
+            <span aria-hidden="true">Super caring, a little emotional, and almost always sleepy.</span>
+            <span aria-hidden="true">Loves her people a lot. Loves her sleep almost as much.</span>
+          </p>
         </div>
         <div class="knot">
           <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-7.5-4.6-10-9.2C.3 8 2 4 6 4c2 0 3.5 1.2 4 2.6C10.5 5.2 12 4 14 4c4 0 5.7 4 4 7.8C18.5 16.4 12 21 12 21z" stroke="currentColor" stroke-width="1.1"/></svg>
@@ -1542,7 +1554,12 @@ a{ color:inherit; }
 </svg></div>
           <span class="eyebrow role">The Groom</span>
           <h3>Rami Reddy</h3>
-          <p>[About Rami Reddy: a line about where he's from and what he loves.]</p>
+          <p class="tag">
+            <span class="on">Every meal he makes is for someone he loves.</span>
+            <span aria-hidden="true">He feeds everyone he loves. No wonder they keep coming home.</span>
+            <span aria-hidden="true">Big on family, and even bigger on good food.</span>
+            <span aria-hidden="true">Family comes first. Food is a very close second.</span>
+          </p>
         </div>
       </div>
     </div></div>
@@ -2425,6 +2442,34 @@ a{ color:inherit; }
     if(!el || el.classList.contains('live') === on) return;
     el.classList.toggle('live', on);
     if(on && el.classList.contains('names')) burst();
+    if(el === coupleCh) cycleTags(on);
+  }
+
+  /* the couple's lines: the bride's and the groom's change together, one pair
+     at a time, each held long enough to read. They only turn while the page
+     is in view, and once it has gone they go back to the first pair, so every
+     visit starts from the beginning. */
+  const coupleCh = document.querySelector('.ch[data-ch="1"]');
+  const tagLines = [].slice.call(document.querySelectorAll('.who .tag')).map(function(p){
+    return [].slice.call(p.children);
+  });
+  const TAG_HOLD = 7000;
+  let tagAt = 0, tagTimer = 0;
+  function showTag(n){
+    tagAt = n;
+    tagLines.forEach(function(lines){
+      lines.forEach(function(l, k){
+        l.classList.toggle('on', k === n);
+        l.setAttribute('aria-hidden', k === n ? 'false' : 'true');
+      });
+    });
+  }
+  function cycleTags(on){
+    clearInterval(tagTimer);
+    if(!on){ showTag(0); return; }
+    tagTimer = setInterval(function(){
+      if(!document.hidden) showTag((tagAt + 1) % tagLines[0].length);
+    }, TAG_HOLD);
   }
 
   /* the one clock every turn, spring-back and peek runs on; starting a new
