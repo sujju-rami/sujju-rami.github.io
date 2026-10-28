@@ -2446,15 +2446,22 @@ a{ color:inherit; }
   }
 
   /* the couple's lines: the bride's and the groom's change together, one pair
-     at a time, each held long enough to read. They only turn while the page
-     is in view, and once it has gone they go back to the first pair, so every
-     visit starts from the beginning. */
+     at a time. They only turn while the page is in view, and once it has gone
+     they go back to the first pair, so every visit starts from the beginning.
+     Each pair stays in full view long enough to read both lines at an easy
+     pace and look at the page besides: twelve seconds at the least, longer
+     for the wordier pairs. TAG_FADE is the old line going and the new one
+     arriving, which also covers the page's own entrance on the first pair. */
   const coupleCh = document.querySelector('.ch[data-ch="1"]');
   const tagLines = [].slice.call(document.querySelectorAll('.who .tag')).map(function(p){
     return [].slice.call(p.children);
   });
-  const TAG_HOLD = 7000;
+  const TAG_FADE = 1800;
   let tagAt = 0, tagTimer = 0;
+  function holdFor(n){
+    const chars = tagLines.reduce(function(sum, lines){ return sum + lines[n].textContent.trim().length; }, 0);
+    return Math.max(12000, 4000 + chars * 80);
+  }
   function showTag(n){
     tagAt = n;
     tagLines.forEach(function(lines){
@@ -2465,11 +2472,14 @@ a{ color:inherit; }
     });
   }
   function cycleTags(on){
-    clearInterval(tagTimer);
+    clearTimeout(tagTimer);
     if(!on){ showTag(0); return; }
-    tagTimer = setInterval(function(){
-      if(!document.hidden) showTag((tagAt + 1) % tagLines[0].length);
-    }, TAG_HOLD);
+    (function next(){
+      tagTimer = setTimeout(function(){
+        if(!document.hidden) showTag((tagAt + 1) % tagLines[0].length);
+        next();
+      }, TAG_FADE + holdFor(tagAt));
+    })();
   }
 
   /* the one clock every turn, spring-back and peek runs on; starting a new
