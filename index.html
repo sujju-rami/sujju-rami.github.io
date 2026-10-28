@@ -532,6 +532,13 @@ a{ color:inherit; }
 .fld .step input[type=text]{ border:0; border-radius:0; background:none; box-shadow:none; padding:0;
   text-align:center; font:700 1.25rem/1 'Bodoni Moda',Georgia,serif;
   color:#2E0A12; width:100%; pointer-events:none; }
+/* one stepper per celebration, each with its own day; at nought it reads
+   "Not coming" in the softer hand rather than a bare 0 */
+.evt + .evt{ margin-top:12px; }
+.evt-name{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:0 2px 6px;
+  font-family:'Cormorant Garamond',Georgia,serif; font-size:1.18rem; font-weight:600; color:#2E0A12; }
+.evt-name i{ font:500 .72rem/1 'Karla',sans-serif; letter-spacing:.06em; color:#6B5445; }
+.fld .step.none input[type=text]{ font:italic 600 1.08rem/1 'Cormorant Garamond',Georgia,serif; color:#6B5445; }
 
 .rsvp-send{ width:100%; min-height:52px; margin-top:6px; cursor:pointer; border:0; border-radius:2px;
   background:linear-gradient(160deg,#9E1B2F,#7D1224); color:#F6E7CE;
@@ -1972,9 +1979,10 @@ a{ color:inherit; }
 <nav id="menu" aria-label="Chapters"></nav>
 
 <!-- ============ RSVP ============
-     There is no server of our own. Each reply (name and number of guests) is
+     There is no server of our own. Each reply (a name, and how many are
+     coming to the Pellikuthuru and to the wedding, each counted on its own) is
      posted to a Google Apps Script web app that adds a row to the family's
-     Google Sheet, where the total keeps itself, and emails both family
+     Google Sheet, where a total for each keeps itself, and emails both family
      addresses with the running count. The guest never sends an email of
      their own: it is one tap. The bot-field is a honeypot the script drops. -->
 <div id="sheetScrim"></div>
@@ -1996,13 +2004,25 @@ a{ color:inherit; }
       <em class="err" id="rsvpNameErr">Please tell us who is replying.</em>
     </label>
 
-    <div class="fld" id="guestsFld">
+    <div class="fld" id="guestsFld" role="group" aria-labelledby="guestsLbl">
       <span class="lbl" id="guestsLbl">How many of you are coming?</span>
-      <div class="step">
-        <button type="button" data-d="-1" aria-label="One fewer guest">&minus;</button>
-        <input name="guests" id="rsvpGuests" type="text" value="1" readonly tabindex="-1" inputmode="none" aria-labelledby="guestsLbl" aria-live="polite">
-        <button type="button" data-d="1" aria-label="One more guest">+</button>
+      <div class="evt" data-evt="pk">
+        <span class="evt-name" id="pkLbl">Pellikuthuru <i>Sat, 21 Nov</i></span>
+        <div class="step">
+          <button type="button" data-d="-1" aria-label="One fewer guest at the Pellikuthuru">&minus;</button>
+          <input type="text" value="1" readonly tabindex="-1" inputmode="none" aria-labelledby="pkLbl" aria-live="polite">
+          <button type="button" data-d="1" aria-label="One more guest at the Pellikuthuru">+</button>
+        </div>
       </div>
+      <div class="evt" data-evt="wd">
+        <span class="evt-name" id="wdLbl">The Wedding <i>Sun, 22 Nov</i></span>
+        <div class="step">
+          <button type="button" data-d="-1" aria-label="One fewer guest at the wedding">&minus;</button>
+          <input type="text" value="1" readonly tabindex="-1" inputmode="none" aria-labelledby="wdLbl" aria-live="polite">
+          <button type="button" data-d="1" aria-label="One more guest at the wedding">+</button>
+        </div>
+      </div>
+      <em class="err" id="guestsErr">Please add at least one guest to either celebration.</em>
     </div>
 
     <button class="rsvp-send" id="rsvpSend" type="submit">Count us in</button>
@@ -2994,14 +3014,15 @@ a{ color:inherit; }
   /* =========================================================
      RSVP
      One button on the closing chapter raises a sheet: a name, how many are
-     coming, one tap. The reply is posted to the family's Google Apps Script
-     web app, which adds it to their RSVP sheet, keeps the running total and
+     coming to the Pellikuthuru and how many to the wedding, one tap. The
+     reply is posted to the family's Google Apps Script web app, which adds it
+     to their RSVP sheet, keeps a running total for each celebration and
      emails both family addresses. The guest never writes or sends an email
      of their own.
      ========================================================= */
   const sheet = document.getElementById('rsvpSheet'), sheetScrim = document.getElementById('sheetScrim'),
         form = document.getElementById('rsvpForm'), openBtn = document.getElementById('rsvpOpen'),
-        nameIn = document.getElementById('rsvpName'), guestsIn = document.getElementById('rsvpGuests'),
+        nameIn = document.getElementById('rsvpName'),
         guestsFld = document.getElementById('guestsFld'), sendBtn = document.getElementById('rsvpSend'),
         done = document.getElementById('rsvpDone'), doneMsg = document.getElementById('rsvpDoneMsg'),
         doneTitle = document.getElementById('rsvpDoneTitle'), errMsg = document.getElementById('rsvpErr'),
@@ -3009,7 +3030,7 @@ a{ color:inherit; }
   /* the Google Apps Script web app (Deploy > Web app: the URL ending in /exec) */
   const RSVP_URL = 'https://script.google.com/macros/s/AKfycbwpmbZi4U_Lh0sr9ywWkdfqYeG3mDO5GP-i-NO-mDdRxJngik2Zt_TGuulfhPWc4-ty/exec';
   const MAX_GUESTS = 10, SEND_LABEL = sendBtn.textContent;
-  let guests = 1, lastFocus = null, sending = false;
+  let lastFocus = null, sending = false;
 
   /* one sheet at a time, RSVP or directions, over a shared scrim; while one
      is up, everything behind it is inert, so focus cannot wander behind the
@@ -3048,18 +3069,39 @@ a{ color:inherit; }
   sheetScrim.addEventListener('click', function(){ closeSheet(); });
   addEventListener('keydown', function(e){ if(e.key === 'Escape' && sheetOpen) closeSheet(); });
 
-  const stepBtns = [].slice.call(guestsFld.querySelectorAll('button'));
-  function setGuests(n){
-    guests = Math.max(1, Math.min(MAX_GUESTS, n));
-    guestsIn.value = String(guests);
-    stepBtns[0].disabled = guests <= 1;
-    stepBtns[1].disabled = guests >= MAX_GUESTS;
-  }
-  stepBtns.forEach(function(b){
-    b.addEventListener('click', function(){ setGuests(guests + (+b.dataset.d)); });
+  /* a count for each celebration, the Pellikuthuru (pk) and the wedding (wd),
+     from nought, which reads "Not coming", up to MAX_GUESTS */
+  const counts = {}, steps = {};
+  [].slice.call(guestsFld.querySelectorAll('.evt')).forEach(function(ev){
+    const k = ev.dataset.evt;
+    const s = steps[k] = { box:ev.querySelector('.step'), out:ev.querySelector('input'),
+                           btns:[].slice.call(ev.querySelectorAll('button')) };
+    s.btns.forEach(function(b){
+      b.addEventListener('click', function(){
+        setCount(k, counts[k] + (+b.dataset.d));
+        guestsFld.classList.remove('bad');
+      });
+    });
   });
-  setGuests(1);
+  function setCount(k, n){
+    const s = steps[k];
+    counts[k] = Math.max(0, Math.min(MAX_GUESTS, n));
+    s.out.value = counts[k] ? String(counts[k]) : 'Not coming';
+    s.box.classList.toggle('none', !counts[k]);
+    s.btns[0].disabled = counts[k] <= 0;
+    s.btns[1].disabled = counts[k] >= MAX_GUESTS;
+  }
+  function resetCounts(){ setCount('pk', 1); setCount('wd', 1); }
+  resetCounts();
   nameIn.addEventListener('input', function(){ nameIn.closest('.fld').classList.remove('bad'); });
+
+  function guestLine(n){ return n === 1 ? '1 guest' : n + ' guests'; }
+  function countedLine(pk, wd){
+    if(pk && wd) return pk === wd
+      ? guestLine(pk) + ' for the Pellikuthuru and the wedding'
+      : guestLine(pk) + ' for the Pellikuthuru and ' + guestLine(wd) + ' for the wedding';
+    return pk ? guestLine(pk) + ' for the Pellikuthuru' : guestLine(wd) + ' for the wedding';
+  }
 
   function markSent(nm){
     openBtn.classList.add('sent');
@@ -3076,7 +3118,13 @@ a{ color:inherit; }
       nameIn.focus();
       return;
     }
-    const line = guests === 1 ? '1 guest' : guests + ' guests';
+    const pk = counts.pk, wd = counts.wd;
+    if(!pk && !wd){
+      guestsFld.classList.add('bad');
+      return;
+    }
+    const body = new URLSearchParams(new FormData(form));
+    body.set('pk', pk); body.set('wd', wd);
     sending = true; errMsg.hidden = true;
     sendBtn.disabled = true; sendBtn.textContent = 'Sending\u2026';
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
@@ -3086,7 +3134,7 @@ a{ color:inherit; }
        the row is safely in the sheet */
     (RSVP_URL ? fetch(RSVP_URL, {
       method:'POST',
-      body:new URLSearchParams(new FormData(form)),
+      body:body,
       signal:ctl ? ctl.signal : undefined
     }) : Promise.reject(new Error('RSVP_URL is not set'))).then(function(res){
       if(!res.ok) throw new Error('RSVP post returned ' + res.status);
@@ -3095,9 +3143,9 @@ a{ color:inherit; }
       if(!data || data.ok !== true) throw new Error('RSVP not recorded');
       form.hidden = true; done.hidden = false;
       doneTitle.textContent = 'Thank you, ' + nm.split(' ')[0];
-      doneMsg.textContent = 'We have counted ' + line + '. We cannot wait to celebrate with you.';
+      doneMsg.textContent = 'We have counted ' + countedLine(pk, wd) + '. We cannot wait to celebrate with you.';
       markSent(nm);
-      try{ localStorage.setItem('sr-rsvp', JSON.stringify({ name:nm, n:guests, at:Date.now() })); }catch(e){}
+      try{ localStorage.setItem('sr-rsvp', JSON.stringify({ name:nm, pk:pk, wd:wd, at:Date.now() })); }catch(e){}
       doneClose.focus({ preventScroll:true });
     }).catch(function(){
       /* nothing is lost by trying again: the guest is told plainly and the
@@ -3110,8 +3158,8 @@ a{ color:inherit; }
   });
 
   document.getElementById('rsvpAgain').addEventListener('click', function(){
-    form.reset(); setGuests(1); errMsg.hidden = true;
-    nameIn.closest('.fld').classList.remove('bad');
+    form.reset(); resetCounts(); errMsg.hidden = true;
+    nameIn.closest('.fld').classList.remove('bad'); guestsFld.classList.remove('bad');
     done.hidden = true; form.hidden = false;
     sheet.scrollTop = 0;
   });
